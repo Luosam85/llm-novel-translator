@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小說翻譯器 v2</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#1a1a1e;--surface:#242428;--surface2:#2e2e33;--border:#3a3a40;
+  --text:#e8e8e2;--muted:#888882;--accent:#5b8cff;--accent-hover:#7aa3ff;
+  --success:#4caf7d;--danger:#e05c5c;--warning:#e0a84a;--radius:8px;
+}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── top bar ── */
+#topbar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+#app-title{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.04em;white-space:nowrap}
+#prog-wrap{flex:1;height:6px;background:var(--bg);border-radius:999px;overflow:hidden}
+#prog-bar{height:100%;width:0%;background:var(--accent);border-radius:999px;transition:width .3s ease}
+#prog-bar.cooling{background:var(--warning)}
+#prog-label{font-size:12px;color:var(--muted);white-space:nowrap;min-width:90px;text-align:right}
+.icon-btn{width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--border);background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:15px;transition:background .15s,color .15s;flex-shrink:0}
+.icon-btn:hover{background:var(--surface2);color:var(--text)}
+
+/* ── tab bar ── */
+#tabbar{display:flex;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.tab{padding:7px 18px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;user-select:none}
+.tab.active{color:var(--text);border-bottom-color:var(--accent)}
+.tab:hover:not(.active){color:var(--text)}
+
+/* ── views ── */
+#view-single,#view-batch{display:none;flex:1;overflow:hidden;flex-direction:column}
+#view-single.active,#view-batch.active{display:flex}
+
+/* ── single view ── */
+#main{display:flex;flex:1;overflow:hidden}
+.pane{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.pane+.pane{border-left:1px solid var(--border)}
+.pane-header{display:flex;align-items:center;padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;gap:6px}
+.pane-title{font-size:12px;color:var(--muted);flex:1;font-weight:500;letter-spacing:.03em}
+.pane-btn{padding:3px 9px;border-radius:var(--radius);border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;transition:background .15s,color .15s}
+.pane-btn:hover{background:var(--surface2);color:var(--text)}
+#inputArea{flex:1;width:100%;border:none;outline:none;resize:none;padding:14px;font-size:13px;line-height:1.8;background:var(--bg);color:var(--text);font-family:inherit}
+#outputArea{flex:1;overflow-y:auto;padding:14px;font-size:13px;line-height:2;background:var(--bg)}
+#outputArea p{margin-bottom:.8em;color:var(--text)}
+#outputArea .placeholder{color:var(--muted);font-style:italic}
+
+/* ── lang selectors ── */
+#lang-bar{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+#lang-bar label{font-size:12px;color:var(--muted)}
+#lang-bar select{padding:3px 8px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px;outline:none}
+#lang-bar select:focus{border-color:var(--accent)}
+.lang-arrow{color:var(--muted);font-size:14px}
+
+/* ── batch view ── */
+#batch-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.batch-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.batch-section h3{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.03em}
+.batch-row{display:flex;align-items:center;gap:8px}
+.batch-input{flex:1;padding:7px 10px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;outline:none}
+.batch-input:focus{border-color:var(--accent)}
+.batch-btn{padding:6px 14px;border-radius:var(--radius);border:1px solid var(--border);background:transparent;color:var(--muted);font-size:12px;cursor:pointer;white-space:nowrap;transition:background .15s}
+.batch-btn:hover{background:var(--surface2);color:var(--text)}
+#batch-filelist{font-size:12px;color:var(--muted);line-height:1.8;max-height:120px;overflow-y:auto;padding:6px 8px;background:var(--bg);border-radius:var(--radius);border:1px solid var(--border)}
+#batch-progress-area{display:flex;flex-direction:column;gap:6px}
+.batch-prog-row{display:flex;align-items:center;gap:8px;font-size:12px}
+.batch-prog-wrap{flex:1;height:5px;background:var(--bg);border-radius:999px;overflow:hidden}
+.batch-prog-fill{height:100%;width:0%;background:var(--accent);border-radius:999px;transition:width .3s}
+#batch-log{font-size:12px;color:var(--muted);line-height:1.8;max-height:140px;overflow-y:auto;padding:6px 8px;background:var(--bg);border-radius:var(--radius);border:1px solid var(--border);font-family:monospace}
+
+/* ── bottom bar ── */
+#bottombar{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
+#status-text{font-size:12px;color:var(--muted);flex:1}
+.btn-stop{padding:6px 14px;border-radius:var(--radius);border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13px;cursor:pointer;transition:background .15s}
+.btn-stop:hover{background:var(--surface2);color:var(--text)}
+.btn-stop:disabled{opacity:.4;cursor:not-allowed}
+.btn-go{padding:6px 18px;border-radius:var(--radius);border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s}
+.btn-go:hover{background:var(--accent-hover)}
+.btn-go:disabled{background:var(--border);color:var(--muted);cursor:not-allowed}
+
+/* ── settings overlay ── */
+#settings-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);align-items:flex-start;justify-content:center;z-index:100;padding-top:40px;overflow-y:auto}
+#settings-overlay.open{display:flex}
+#settings-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;width:380px;display:flex;flex-direction:column;gap:16px;margin-bottom:40px}
+#settings-card h2{font-size:15px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.close-btn{width:26px;height:26px;border-radius:var(--radius);border:none;background:transparent;cursor:pointer;color:var(--muted);font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center}
+.close-btn:hover{background:var(--surface2);color:var(--text)}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+.field input,.field select,.field textarea{width:100%;padding:7px 10px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;outline:none;transition:border-color .15s;font-family:inherit}
+.field textarea{resize:vertical;min-height:100px;line-height:1.6}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent)}
+.field-row{display:flex;gap:10px}
+.field-row .field{flex:1}
+.hint{font-size:11px;color:var(--muted);line-height:1.5}
+.reset-link{font-size:11px;color:var(--accent);cursor:pointer;text-decoration:underline}
+.reset-link:hover{color:var(--accent-hover)}
+.toggle-row{display:flex;align-items:center;gap:8px}
+.toggle-row input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--accent)}
+.toggle-row label{font-size:13px;color:var(--text);cursor:pointer}
+.divider{border:none;border-top:1px solid var(--border);margin:2px 0}
+.save-btn{padding:8px;border-radius:var(--radius);border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;width:100%;transition:background .15s}
+.save-btn:hover{background:var(--accent-hover)}
+
+/* ── warning toast ── */
+#warning-toast{display:none;position:fixed;top:14px;left:50%;transform:translateX(-50%);background:#4a1f1f;border:1px solid var(--danger);border-radius:var(--radius);padding:10px 18px;font-size:13px;color:#f5a0a0;z-index:200;max-width:400px;text-align:center}
+#warning-toast.show{display:block}
+
+/* scrollbar */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:999px}
+</style>
+</head>
+<body>
+
+<!-- WARNING TOAST -->
+<div id="warning-toast"></div>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <span id="app-title">小說翻譯器 v2</span>
+  <div id="prog-wrap"><div id="prog-bar"></div></div>
+  <span id="prog-label">尚未開始</span>
+  <button class="icon-btn" onclick="toggleSettings()" aria-label="設定" title="設定">⚙</button>
+</div>
+
+<!-- TAB BAR -->
+<div id="tabbar">
+  <div class="tab active" onclick="switchTab('single')">單檔翻譯</div>
+  <div class="tab" onclick="switchTab('batch')">批次翻譯</div>
+</div>
+
+<!-- LANG BAR -->
+<div id="lang-bar">
+  <label>原文語言</label>
+  <select id="src-lang">
+    <option value="auto">自動偵測</option>
+    <option value="日文" selected>日文</option>
+    <option value="英文">英文</option>
+    <option value="繁體中文">繁體中文</option>
+    <option value="簡體中文">簡體中文</option>
+    <option value="韓文">韓文</option>
+    <option value="法文">法文</option>
+    <option value="德文">德文</option>
+    <option value="西班牙文">西班牙文</option>
+  </select>
+  <span class="lang-arrow">→</span>
+  <label>目標語言</label>
+  <select id="dst-lang">
+    <option value="繁體中文" selected>繁體中文</option>
+    <option value="簡體中文">簡體中文</option>
+    <option value="英文">英文</option>
+    <option value="日文">日文</option>
+    <option value="韓文">韓文</option>
+    <option value="法文">法文</option>
+    <option value="德文">德文</option>
+    <option value="西班牙文">西班牙文</option>
+  </select>
+</div>
+
+<!-- ══ SINGLE VIEW ══ -->
+<div id="view-single" class="active">
+  <div id="main">
+    <div class="pane">
+      <div class="pane-header">
+        <span class="pane-title">原文</span>
+        <button class="pane-btn" onclick="loadFile()">載入 .txt</button>
+        <button class="pane-btn" onclick="clearInput()">清空</button>
+      </div>
+      <textarea id="inputArea" placeholder="請貼上原文，或點擊「載入 .txt」讀取檔案…"></textarea>
+    </div>
+    <div class="pane">
+      <div class="pane-header">
+        <span class="pane-title">譯文</span>
+        <button class="pane-btn" onclick="copyOutput()">複製全部</button>
+        <button class="pane-btn" onclick="saveOutput()">儲存 .txt</button>
+      </div>
+      <div id="outputArea"><p class="placeholder">翻譯結果將顯示在這裡…</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BATCH VIEW ══ -->
+<div id="view-batch">
+  <div id="batch-body">
+    <div class="batch-section">
+      <h3>來源資料夾</h3>
+      <div class="batch-row">
+        <input class="batch-input" id="batch-folder-input" placeholder="輸入資料夾完整路徑，例如 C:\novels\folder_A">
+        <button class="batch-btn" onclick="checkBatchFolder()">確認</button>
+      </div>
+      <div id="batch-filelist">尚未選擇資料夾</div>
+    </div>
+    <div class="batch-section">
+      <h3>翻譯進度</h3>
+      <div id="batch-progress-area">
+        <div class="batch-prog-row">
+          <span id="batch-file-label" style="min-width:120px;color:var(--muted)">尚未開始</span>
+          <div class="batch-prog-wrap"><div class="batch-prog-fill" id="batch-file-prog"></div></div>
+          <span id="batch-file-pct" style="min-width:36px;text-align:right;color:var(--muted)">0%</span>
+        </div>
+        <div class="batch-prog-row">
+          <span style="min-width:120px;color:var(--muted)">整體進度</span>
+          <div class="batch-prog-wrap"><div class="batch-prog-fill" id="batch-total-prog"></div></div>
+          <span id="batch-total-pct" style="min-width:36px;text-align:right;color:var(--muted)">0%</span>
+        </div>
+      </div>
+      <div id="batch-log">等待開始…</div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div id="bottombar">
+  <span id="status-text">就緒・請選擇模式後開始翻譯</span>
+  <button class="btn-stop" id="stopBtn" onclick="stopTranslation()" disabled>停止</button>
+  <button class="btn-go" id="startBtn" onclick="startCurrent()">開始翻譯</button>
+</div>
+
+<!-- SETTINGS OVERLAY -->
+<div id="settings-overlay">
+  <div id="settings-card">
+    <h2>設定 <button class="close-btn" onclick="toggleSettings()">✕</button></h2>
+
+    <div class="field">
+      <label>LM Studio API 網址</label>
+      <input type="text" id="cfg-api" value="http://localhost:1234/v1">
+    </div>
+
+    <div class="field">
+      <label>模型名稱（Model ID）</label>
+      <input type="text" id="cfg-model" value="">
+      <span class="hint">需與 LM Studio 載入的模型名稱完全一致</span>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>每段最大字數</label>
+        <input type="number" id="cfg-chunksize" value="600" min="100" max="3000" step="100">
+      </div>
+      <div class="field">
+        <label>段落延遲（秒）</label>
+        <input type="number" id="cfg-delay" value="0" min="0" max="30" step="0.5">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>翻譯風格</label>
+      <select id="cfg-style">
+        <option value="natural">意譯（自然流暢，優先可讀性）</option>
+        <option value="literal">直譯（忠實原文，保留語序）</option>
+        <option value="novel">小說風（強化語感與節奏）</option>
+      </select>
+    </div>
+
+    <hr class="divider">
+
+    <div class="field">
+      <label>
+        系統提示詞（Prompt）
+        <span class="reset-link" onclick="resetPrompt()">重設為預設</span>
+      </label>
+      <textarea id="cfg-prompt"></textarea>
+      <span class="hint">使用 {src}、{dst}、{style} 作為語言與風格的佔位符，程式會自動填入</span>
+    </div>
+
+    <hr class="divider">
+
+    <div class="toggle-row">
+      <input type="checkbox" id="cfg-cooling-enabled">
+      <label for="cfg-cooling-enabled">啟用降速冷卻模式</label>
+    </div>
+    <div class="field-row" id="cooling-fields">
+      <div class="field">
+        <label>翻譯幾分鐘後暫停</label>
+        <input type="number" id="cfg-cool-work" value="20" min="1" max="120" step="1">
+      </div>
+      <div class="field">
+        <label>暫停幾分鐘</label>
+        <input type="number" id="cfg-cool-rest" value="5" min="1" max="60" step="1">
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="field">
+      <label>本地伺服器網址（批次翻譯用）</label>
+      <input type="text" id="cfg-server" value="http://localhost:5678">
+      <span class="hint">需先啟動 server.py 才能使用批次翻譯功能</span>
+    </div>
+
+    <button class="save-btn" onclick="saveSettings()">儲存並關閉</button>
+  </div>
+</div>
+
+<!-- HIDDEN FILE INPUT -->
+<input type="file" id="fileInput" accept=".txt" style="display:none" onchange="onFileLoaded(event)">
+
+<script>
+// ══════════════════════════════════════════════════════
+//  預設 Prompt（穩定v1 基準）
+// ══════════════════════════════════════════════════════
+const DEFAULT_PROMPT = `你是一位專業的小說翻譯員。請將以下{src}段落翻譯成{dst}。
+翻譯風格：{style}
+重要規則：
+1. 直接輸出譯文，不要加任何說明、前言、標題或備註
+2. 不要輸出「以下是翻譯」、「翻譯如下」等說明句
+3. 保留段落結構，每句話之間空一行
+4. 保持人名、地名等專有名詞一致性`;
+
+const STYLE_LABELS = {
+  natural: '意譯（自然流暢，優先可讀性）',
+  literal: '直譯（忠實原文，保留語序）',
+  novel:   '小說風（強化語感與節奏）'
+};
+
+// ══════════════════════════════════════════════════════
+//  Config（從 localStorage 讀取）
+// ══════════════════════════════════════════════════════
+let cfg = Object.assign({
+  api:            'http://localhost:1234/v1',
+  model:          '',
+  chunkSize:      600,
+  delay:          0,
+  style:          'natural',
+  prompt:         DEFAULT_PROMPT,
+  coolingEnabled: false,
+  coolWork:       20,
+  coolRest:       5,
+  server:         'http://localhost:5678'
+}, JSON.parse(localStorage.getItem('translator-cfg') || '{}'));
+
+// ══════════════════════════════════════════════════════
+//  State
+// ══════════════════════════════════════════════════════
+let isRunning    = false;
+let shouldStop   = false;
+let outputParagraphs = [];
+let currentTab   = 'single';
+
+// Cooling state
+let coolingActive    = false;
+let workStartTime    = null;
+let coolingResolve   = null;
+
+// Batch state
+let batchFolder  = '';
+let batchFiles   = [];
+let batchOutput  = '';
+
+// ══════════════════════════════════════════════════════
+//  Tab switching
+// ══════════════════════════════════════════════════════
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', (i===0&&tab==='single')||(i===1&&tab==='batch'));
+  });
+  document.getElementById('view-single').classList.toggle('active', tab==='single');
+  document.getElementById('view-batch').classList.toggle('active', tab==='batch');
+}
+
+// ══════════════════════════════════════════════════════
+//  Settings
+// ══════════════════════════════════════════════════════
+function toggleSettings() {
+  const o = document.getElementById('settings-overlay');
+  if (!o.classList.contains('open')) {
+    document.getElementById('cfg-api').value         = cfg.api;
+    document.getElementById('cfg-model').value       = cfg.model;
+    document.getElementById('cfg-chunksize').value   = cfg.chunkSize;
+    document.getElementById('cfg-delay').value       = cfg.delay;
+    document.getElementById('cfg-style').value       = cfg.style;
+    document.getElementById('cfg-prompt').value      = cfg.prompt;
+    document.getElementById('cfg-cooling-enabled').checked = cfg.coolingEnabled;
+    document.getElementById('cfg-cool-work').value   = cfg.coolWork;
+    document.getElementById('cfg-cool-rest').value   = cfg.coolRest;
+    document.getElementById('cfg-server').value      = cfg.server;
+  }
+  o.classList.toggle('open');
+}
+
+function resetPrompt() {
+  document.getElementById('cfg-prompt').value = DEFAULT_PROMPT;
+}
+
+function saveSettings() {
+  cfg.api            = document.getElementById('cfg-api').value.trim().replace(/\/$/,'');
+  cfg.model          = document.getElementById('cfg-model').value.trim();
+  cfg.chunkSize      = parseInt(document.getElementById('cfg-chunksize').value)||600;
+  cfg.delay          = parseFloat(document.getElementById('cfg-delay').value)||0;
+  cfg.style          = document.getElementById('cfg-style').value;
+  cfg.prompt         = document.getElementById('cfg-prompt').value.trim()||DEFAULT_PROMPT;
+  cfg.coolingEnabled = document.getElementById('cfg-cooling-enabled').checked;
+  cfg.coolWork       = parseInt(document.getElementById('cfg-cool-work').value)||20;
+  cfg.coolRest       = parseInt(document.getElementById('cfg-cool-rest').value)||5;
+  cfg.server         = document.getElementById('cfg-server').value.trim().replace(/\/$/,'');
+  localStorage.setItem('translator-cfg', JSON.stringify(cfg));
+  toggleSettings();
+  setStatus(`設定已儲存・${STYLE_LABELS[cfg.style]}`);
+}
+
+// ══════════════════════════════════════════════════════
+//  Prompt builder
+// ══════════════════════════════════════════════════════
+function buildPrompt() {
+  const src   = document.getElementById('src-lang').value;
+  const dst   = document.getElementById('dst-lang').value;
+  const style = STYLE_LABELS[cfg.style] || cfg.style;
+  return cfg.prompt
+    .replace(/{src}/g, src === 'auto' ? '原文' : src)
+    .replace(/{dst}/g, dst)
+    .replace(/{style}/g, style);
+}
+
+// ══════════════════════════════════════════════════════
+//  Junk-line filter（移除 LLM 廢話開頭）
+// ══════════════════════════════════════════════════════
+function cleanTranslation(text) {
+  const junkPatterns = [
+    /^以下是.*?翻譯[：:]\s*/,
+    /^這是.*?翻譯[：:]\s*/,
+    /^翻譯如下[：:]\s*/,
+    /^翻譯結果[：:]\s*/,
+    /^.*?中文翻譯[：:]\s*/,
+    /^Sure[,!]?\s+here('s| is).*?\n/i,
+    /^Here('s| is).*?translation.*?\n/i,
+  ];
+  let result = text.trim();
+  for (const p of junkPatterns) {
+    result = result.replace(p, '');
+  }
+  return result.trim();
+}
+
+// ══════════════════════════════════════════════════════
+//  File I/O
+// ══════════════════════════════════════════════════════
+function loadFile() { document.getElementById('fileInput').click(); }
+
+function onFileLoaded(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('inputArea').value = ev.target.result;
+    setStatus(`已載入：${file.name}（${ev.target.result.length.toLocaleString()} 字）`);
+  };
+  reader.readAsText(file, 'UTF-8');
+  e.target.value = '';
+}
+
+function clearInput() {
+  document.getElementById('inputArea').value = '';
+  setStatus('已清空原文');
+}
+
+function copyOutput() {
+  const text = outputParagraphs.join('\n\n');
+  if (!text) { setStatus('目前沒有譯文可複製'); return; }
+  navigator.clipboard.writeText(text).then(() => setStatus('已複製全部譯文到剪貼簿'));
+}
+
+function saveOutput() {
+  const text = outputParagraphs.join('\n\n');
+  if (!text) { setStatus('目前沒有譯文可儲存'); return; }
+  downloadText(text, 'translated.txt');
+  setStatus('已下載 translated.txt');
+}
+
+function downloadText(content, filename) {
+  const blob = new Blob([content], {type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+// ══════════════════════════════════════════════════════
+//  Chunking
+// ══════════════════════════════════════════════════════
+function splitIntoChunks(text, maxLen) {
+  const sentences = text.match(/[^。！？\n\.!?]+[。！？\n\.!?]?/g) || [text];
+  const chunks = [];
+  let current = '';
+  for (const s of sentences) {
+    if (current.length + s.length > maxLen && current.length > 0) {
+      chunks.push(current.trim());
+      current = s;
+    } else {
+      current += s;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
+// ══════════════════════════════════════════════════════
+//  Cooling logic
+// ══════════════════════════════════════════════════════
+async function coolingCheck() {
+  if (!cfg.coolingEnabled || !workStartTime) return;
+  const elapsed = (Date.now() - workStartTime) / 1000 / 60; // minutes
+  if (elapsed >= cfg.coolWork) {
+    coolingActive = true;
+    const restMs = cfg.coolRest * 60 * 1000;
+    const bar = document.getElementById('prog-bar');
+    bar.classList.add('cooling');
+    const end = Date.now() + restMs;
+
+    await new Promise(resolve => {
+      coolingResolve = resolve;
+      const tick = () => {
+        if (shouldStop) { resolve(); return; }
+        const left = Math.max(0, end - Date.now());
+        const mins = Math.floor(left/60000);
+        const secs = Math.floor((left%60000)/1000);
+        setStatus(`冷卻中… 剩餘 ${mins}:${secs.toString().padStart(2,'0')} 分鐘`);
+        if (left <= 0) { resolve(); return; }
+        setTimeout(tick, 1000);
+      };
+      tick();
+    });
+
+    bar.classList.remove('cooling');
+    coolingActive = false;
+    workStartTime = Date.now();
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  Core translate chunk (streaming)
+// ══════════════════════════════════════════════════════
+async function translateChunk(text, targetEl) {
+  const systemPrompt = buildPrompt();
+  const response = await fetch(`${cfg.api}/chat/completions`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      model: cfg.model,
+      stream: true,
+      temperature: 0.4,
+      messages: [
+        {role:'system', content: systemPrompt},
+        {role:'user',   content: `${text}\n\n譯文：`}
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`API 錯誤 ${response.status}: ${err}`);
+  }
+
+  const reader  = response.body.getReader();
+  const decoder = new TextDecoder();
+  let result = '';
+
+  while (true) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    const lines = decoder.decode(value).split('\n');
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const data = line.slice(6).trim();
+      if (data === '[DONE]') break;
+      try {
+        const json = JSON.parse(data);
+        const delta = json.choices?.[0]?.delta?.content || '';
+        if (delta) {
+          result += delta;
+          if (targetEl) targetEl.textContent = result;
+        }
+      } catch {}
+    }
+    if (shouldStop) break;
+  }
+
+  return cleanTranslation(result);
+}
+
+// ══════════════════════════════════════════════════════
+//  Single translation
+// ══════════════════════════════════════════════════════
+async function startSingleTranslation() {
+  const input = document.getElementById('inputArea').value.trim();
+  if (!input) { setStatus('請先輸入或載入原文'); return; }
+
+  isRunning = true;
+  shouldStop = false;
+  outputParagraphs = [];
+  workStartTime = Date.now();
+
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('stopBtn').disabled  = false;
+
+  const chunks = splitIntoChunks(input, cfg.chunkSize);
+  const total  = chunks.length;
+  const outputArea = document.getElementById('outputArea');
+  outputArea.innerHTML = '';
+
+  setProgress(0, total);
+  setStatus(`開始翻譯・共 ${total} 段`);
+
+  for (let i = 0; i < total; i++) {
+    if (shouldStop) break;
+    await coolingCheck();
+    if (shouldStop) break;
+
+    setStatus(`翻譯中 ${i+1} / ${total} 段…`);
+    setProgress(i, total);
+
+    const p = document.createElement('p');
+    p.textContent = '▍';
+    outputArea.appendChild(p);
+    outputArea.scrollTop = outputArea.scrollHeight;
+
+    try {
+      const translated = await translateChunk(chunks[i], p);
+      p.textContent = translated;
+      outputParagraphs[i] = translated;
+    } catch(err) {
+      p.style.color = 'var(--danger)';
+      p.textContent = `[第 ${i+1} 段翻譯失敗：${err.message}]`;
+      outputParagraphs[i] = '';
+    }
+
+    if (!shouldStop && i < total-1 && cfg.delay > 0) {
+      await sleep(cfg.delay * 1000);
+    }
+  }
+
+  finishTranslation(total);
+}
+
+// ══════════════════════════════════════════════════════
+//  Batch translation
+// ══════════════════════════════════════════════════════
+async function checkBatchFolder() {
+  const folder = document.getElementById('batch-folder-input').value.trim();
+  if (!folder) { showWarning('請輸入資料夾路徑'); return; }
+
+  try {
+    const res  = await fetch(`${cfg.server}/list?folder=${encodeURIComponent(folder)}`);
+    const data = await res.json();
+    if (data.error) { showWarning('錯誤：' + data.error); return; }
+
+    batchFolder = folder;
+    batchFiles  = data.files;
+    const listEl = document.getElementById('batch-filelist');
+    if (data.count === 0) {
+      listEl.textContent = '資料夾內沒有 .txt 檔案';
+    } else {
+      listEl.innerHTML = data.files.map(f => `• ${f}`).join('<br>');
+    }
+    setStatus(`找到 ${data.count} 個 txt 檔案・點擊「開始翻譯」繼續`);
+  } catch(e) {
+    showWarning('無法連線到本地伺服器，請確認 server.py 已啟動');
+  }
+}
+
+async function startBatchTranslation() {
+  if (!batchFolder || batchFiles.length === 0) {
+    showWarning('請先確認資料夾並找到 txt 檔案');
+    return;
+  }
+
+  // Check output folder
+  try {
+    const chk = await fetch(`${cfg.server}/check`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({folder: batchFolder})
+    });
+    const chkData = await chk.json();
+    if (chkData.exists) {
+      showWarning(`輸出資料夾「${chkData.output_name}」已存在！\n請手動重新命名後再試。`);
+      return;
+    }
+    batchOutput = chkData.output_path;
+
+    // Create output folder
+    await fetch(`${cfg.server}/mkdir`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({folder: batchOutput})
+    });
+  } catch(e) {
+    showWarning('無法連線到本地伺服器，請確認 server.py 已啟動');
+    return;
+  }
+
+  isRunning  = true;
+  shouldStop = false;
+  workStartTime = Date.now();
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('stopBtn').disabled  = false;
+
+  const logEl = document.getElementById('batch-log');
+  logEl.innerHTML = '';
+
+  for (let fi = 0; fi < batchFiles.length; fi++) {
+    if (shouldStop) break;
+    const fname = batchFiles[fi];
+
+    batchLog(logEl, `▶ 開始：${fname}`);
+    setBatchProgress(fi, batchFiles.length, 0, 1, fname);
+
+    // Read file
+    let content = '';
+    try {
+      const readRes  = await fetch(`${cfg.server}/read?file=${encodeURIComponent(batchFolder + '\\' + fname)}`);
+      const readData = await readRes.json();
+      if (readData.error) throw new Error(readData.error);
+      content = readData.content;
+    } catch(e) {
+      batchLog(logEl, `✗ 讀取失敗：${fname} — ${e.message}`, true);
+      continue;
+    }
+
+    // Translate
+    const chunks  = splitIntoChunks(content, cfg.chunkSize);
+    const results = [];
+
+    for (let ci = 0; ci < chunks.length; ci++) {
+      if (shouldStop) break;
+      await coolingCheck();
+      if (shouldStop) break;
+
+      setStatus(`${fname}・翻譯段落 ${ci+1} / ${chunks.length}`);
+      setBatchProgress(fi, batchFiles.length, ci, chunks.length, fname);
+
+      try {
+        const translated = await translateChunk(chunks[ci], null);
+        results.push(translated);
+      } catch(e) {
+        results.push(`[翻譯失敗：${e.message}]`);
+        batchLog(logEl, `⚠ 第 ${ci+1} 段失敗`, true);
+      }
+
+      if (!shouldStop && ci < chunks.length-1 && cfg.delay > 0) {
+        await sleep(cfg.delay * 1000);
+      }
+    }
+
+    // Write output
+    const outContent = results.join('\n\n');
+    try {
+      await fetch(`${cfg.server}/write`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          file: batchOutput + '\\' + fname,
+          content: outContent
+        })
+      });
+      batchLog(logEl, `✓ 完成：${fname}`);
+    } catch(e) {
+      batchLog(logEl, `✗ 寫入失敗：${fname}`, true);
+    }
+
+    setBatchProgress(fi+1, batchFiles.length, chunks.length, chunks.length, fname);
+  }
+
+  finishTranslation(batchFiles.length);
+  if (!shouldStop) batchLog(logEl, `\n全部完成！輸出至：${batchOutput}`);
+}
+
+function batchLog(el, msg, isErr=false) {
+  const line = document.createElement('div');
+  line.textContent = msg;
+  if (isErr) line.style.color = 'var(--danger)';
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function setBatchProgress(filesDone, filesTotal, chunksDone, chunksTotal, fname) {
+  const filePct  = chunksTotal > 0 ? Math.round(chunksDone/chunksTotal*100) : 0;
+  const totalPct = filesTotal  > 0 ? Math.round(filesDone/filesTotal*100)   : 0;
+  document.getElementById('batch-file-prog').style.width  = filePct  + '%';
+  document.getElementById('batch-total-prog').style.width = totalPct + '%';
+  document.getElementById('batch-file-pct').textContent   = filePct  + '%';
+  document.getElementById('batch-total-pct').textContent  = totalPct + '%';
+  document.getElementById('batch-file-label').textContent = fname ? fname.slice(0,20) : '—';
+  setProgress(filesDone, filesTotal);
+}
+
+// ══════════════════════════════════════════════════════
+//  Entry point
+// ══════════════════════════════════════════════════════
+function startCurrent() {
+  if (currentTab === 'single') startSingleTranslation();
+  else startBatchTranslation();
+}
+
+function stopTranslation() {
+  shouldStop = true;
+  if (coolingResolve) coolingResolve();
+  setStatus('正在停止…');
+  document.getElementById('stopBtn').disabled = true;
+}
+
+function finishTranslation(total) {
+  isRunning = false;
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('stopBtn').disabled  = true;
+  if (shouldStop) {
+    setProgress(null, null);
+    setStatus('已停止');
+  } else {
+    setProgress(total, total);
+    setStatus('翻譯完成！');
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  Utilities
+// ══════════════════════════════════════════════════════
+function setProgress(done, total) {
+  const bar   = document.getElementById('prog-bar');
+  const label = document.getElementById('prog-label');
+  if (done === null) { bar.style.width='0%'; label.textContent='已停止'; return; }
+  const pct = total > 0 ? Math.round(done/total*100) : 0;
+  bar.style.width = pct + '%';
+  label.textContent = total > 0 ? `${done} / ${total}` : '就緒';
+}
+
+function setStatus(msg) { document.getElementById('status-text').textContent = msg; }
+
+function showWarning(msg) {
+  const t = document.getElementById('warning-toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// init prompt display
+document.getElementById('cfg-prompt').value = cfg.prompt;
+</script>
+</body>
+</html>
